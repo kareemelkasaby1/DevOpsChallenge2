@@ -1,0 +1,75 @@
+version: "2.2"
+services:
+  elasticsearch:
+    build: elasticsearch/
+    container_name: elasticsearch
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ports:
+      - "9200:9200"
+    mem_limit: 1g
+    networks:
+      - elk
+  
+  crowd-funding-webapp:
+    image: kareemelkasaby/crowd_funding_webapp
+    command: gunicorn fund.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./crowd-funding-webapp/Project/static:/djangoApp/Project/static_cdn/static_root
+      # - ./crowd-funding-webapp/Project/static/:/djangoApp/Project/static/
+    # env_file:
+    #   - ./.env.dev
+    expose:
+      - "8000" 
+      
+  kibana:
+    build: kibana/
+    container_name: kibana
+    volumes:
+      - ./kibana/config/:/usr/share/kibana/config
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  logstash:
+    build: logstash/
+    container_name: logstash
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    ports:
+      - "5044:5044"
+    environment:
+      LS_JAVA_OPTS: "-Xmx1g -Xms1g"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  filebeat:
+    build: filebeat/
+    container_name: filebeat
+    volumes:
+      - ./filebeat/config/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - ./nginx/logs:/nginx/logs/
+    depends_on:
+      - elasticsearch
+      - kibana
+  web:
+    build: nginx/
+    container_name: nginx
+    volumes:
+      - ./crowd-funding-webapp/Project/static:/static
+    ports:
+      - '8080:80'
+
+networks:
+  elk:
+    driver: bridge
