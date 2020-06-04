@@ -7,11 +7,14 @@ services:
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_REPORTING_ENABLED=false
+      - XPACK_MONITORING_ENABLED=false
     volumes:
       - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
     ports:
       - "9200:9200"
-    mem_limit: 1g
+    # mem_limit: 1g
     networks:
       - elk
   
@@ -20,9 +23,8 @@ services:
     command: gunicorn fund.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - ./crowd-funding-webapp/Project/static:/djangoApp/Project/static_cdn/static_root
-      # - ./crowd-funding-webapp/Project/static/:/djangoApp/Project/static/
-    # env_file:
-    #   - ./.env.dev
+    networks:
+      - elk
     expose:
       - "8000" 
       
@@ -46,6 +48,10 @@ services:
       - ./logstash/pipeline:/usr/share/logstash/pipeline
     ports:
       - "5044:5044"
+      - "9600:9600"
+      - "5000:5000"
+    expose:
+      - "5044"
     environment:
       LS_JAVA_OPTS: "-Xmx1g -Xms1g"
     networks:
@@ -62,13 +68,18 @@ services:
     depends_on:
       - elasticsearch
       - kibana
+    networks:
+      - elk
   web:
     build: nginx/
     container_name: nginx
     volumes:
       - ./crowd-funding-webapp/Project/static:/static
+      - ./nginx/logs:/var/log/nginx/
     ports:
       - '8080:80'
+    networks:
+      - elk
 
 networks:
   elk:
